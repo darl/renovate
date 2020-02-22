@@ -54,6 +54,42 @@ http_archive(
 
 New versions will be detected using the list of **releases** for that repository on GitHub.
 
+## maven_install
+
+Renovate will update any `maven_install` declaration that contains the following:
+
+1. name
+2. artifacts
+
+Example:
+
+```
+maven_install(
+  name = "maven",
+  artifacts = [
+    "org.slf4j:slf4j-api:1.7.28",
+    maven.artifact(
+      group = "com.google.guava",
+      artifact = "guava",
+      version = "27.0-android",
+      exclusions = [
+        "log4j:log4j",
+        maven.exclusion(
+          group = "org.codehaus.mojo",
+          artifact = "animal-sniffer-annotations"
+        ),
+      ]
+    ),
+    # some comment
+    "io.grpc:grpc-core:1.24.0",
+  ],
+  repositories = [
+    "https://repo1.maven.org/maven2/",
+    "https://example.com/maven/"
+  ],
+)
+```
+
 ## Future work
 
 Contributions and/or feature requests are welcome to support more patterns or additional use cases.
