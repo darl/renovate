@@ -1,5 +1,69 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`lib/manager/bazel/extract extractPackageFile() extract dependencies for maven_install deptype 1`] = `
+Array [
+  Object {
+    "currentValue": "1.7.28",
+    "datasource": "maven",
+    "depName": "org.slf4j:slf4j-api",
+    "depType": "maven_install",
+    "managerData": Object {
+      "replaceData": "\\"org.slf4j:slf4j-api:1.7.28\\",",
+      "ruleName": "maven",
+    },
+    "registryUrls": Array [
+      "https://repo.maven.apache.org/maven2",
+      "https://repo1.maven.org/maven2/",
+      "https://example.com/maven/",
+      "https://some.private.maven.re/",
+    ],
+  },
+  Object {
+    "currentValue": "27.0-android",
+    "datasource": "maven",
+    "depName": "com.google.guava:guava",
+    "depType": "maven_install",
+    "managerData": Object {
+      "replaceData": "maven.artifact(
+              group = \\"com.google.guava\\", # comment
+              artifact = \\"guava\\",
+              version = \\"27.0-android\\",
+              exclusions = [
+                \\"log4j:log4j\\",
+                maven.exclusion( # comment
+                  group = \\"org.codehaus.mojo\\",
+                  artifact = \\"animal-sniffer-annotations\\"
+                ),
+              ]
+            )",
+      "ruleName": "maven",
+    },
+    "registryUrls": Array [
+      "https://repo.maven.apache.org/maven2",
+      "https://repo1.maven.org/maven2/",
+      "https://example.com/maven/",
+      "https://some.private.maven.re/",
+    ],
+  },
+  Object {
+    "currentValue": "1.24.0",
+    "datasource": "maven",
+    "depName": "io.grpc:grpc-core",
+    "depType": "maven_install",
+    "managerData": Object {
+      "replaceData": "\\"io.grpc:grpc-core:1.24.0\\",",
+      "ruleName": "maven",
+    },
+    "registryUrls": Array [
+      "https://repo.maven.apache.org/maven2",
+      "https://repo1.maven.org/maven2/",
+      "https://example.com/maven/",
+      "https://some.private.maven.re/",
+    ],
+  },
+]
+`;
+
 exports[`lib/manager/bazel/extract extractPackageFile() extracts dependencies for container_pull deptype 1`] = `
 Array [
   Object {

@@ -95,5 +95,41 @@ go_repository(
       );
       expect(gitlabRemote.deps[0].skipReason).toBe('unsupported-remote');
     });
+
+    it('extract dependencies for maven_install deptype', () => {
+      const res = extractPackageFile(
+        `
+        maven_install(
+          name = "maven",
+          artifacts = [
+            "org.slf4j:slf4j-api:1.7.28",
+            maven.artifact(
+              group = "com.google.guava", # comment
+              artifact = "guava",
+              version = "27.0-android",
+              exclusions = [
+                "log4j:log4j",
+                maven.exclusion( # comment
+                  group = "org.codehaus.mojo",
+                  artifact = "animal-sniffer-annotations"
+                ),
+              ]
+            ),
+            # some comment
+            "io.grpc:grpc-core:1.24.0",
+          ],
+          repositories = [
+            "https://repo1.maven.org/maven2/",
+            "https://example.com/maven/",
+            maven.repository(
+              "https://some.private.maven.re/",
+              user = "johndoe",
+              password = "example-password"
+            )
+          ],
+        )`
+      );
+      expect(res.deps).toMatchSnapshot();
+    });
   });
 });

@@ -9,7 +9,9 @@ import {
   DATASOURCE_DOCKER,
   DATASOURCE_GITHUB,
   DATASOURCE_GO,
+  DATASOURCE_MAVEN,
 } from '../../constants/data-binary-source';
+import { DEFAULT_MAVEN_REPO } from '../maven/extract';
 
 interface UrlParsedResult {
   repo: string;
@@ -41,7 +43,11 @@ function parseUrl(urlString: string): UrlParsedResult | null {
   return null;
 }
 
-function findBalancedParenIndex(longString: string): number {
+function findBalancedParenIndex(
+  longString: string,
+  open = '(',
+  close = ')'
+): number {
   /**
    * Minimalistic string parser with single task -> find last char in def.
    * It treats [)] as the last char.
@@ -57,10 +63,10 @@ function findBalancedParenIndex(longString: string): number {
   let parenNestingDepth = 1;
   return [...longString].findIndex((char, i, arr) => {
     switch (char) {
-      case '(':
+      case open:
         parenNestingDepth++;
         break;
-      case ')':
+      case close:
         parenNestingDepth--;
         break;
       case '"':
@@ -71,8 +77,117 @@ function findBalancedParenIndex(longString: string): number {
         break;
     }
 
-    return !parenNestingDepth && !(intShouldNotBeOdd % 2) && char === ')';
+    return !parenNestingDepth && !(intShouldNotBeOdd % 2) && char === close;
   });
+}
+
+function parseArtifacts(
+  content: string,
+  startOffset: number
+): PackageDependency[] {
+  let idx = 0;
+  const res: PackageDependency[] = [];
+
+  while (idx < content.length) {
+    if (content[idx] === ' ' || content[idx] === '\n') {
+      idx++;
+    } else {
+      const rest = content.substring(idx);
+
+      let groupId: string;
+      let artifact: string;
+      let version: string;
+      let replaceData: string;
+      let fileReplacePosition: number;
+
+      const stringMatch = /"([^"]+)"\s*,/g.exec(rest);
+      const callMatch = /maven\.artifact\s*\(/g.exec(rest);
+
+      if (stringMatch && (!callMatch || stringMatch.index < callMatch.index)) {
+        replaceData = stringMatch[0];
+        const str = stringMatch[1];
+        [groupId, artifact, version] = str.split(':');
+        const ss = rest.slice(stringMatch.index);
+        const positionOfSecondColon = ss.indexOf(':', ss.indexOf(':') + 1);
+        fileReplacePosition =
+          startOffset + idx + stringMatch.index + positionOfSecondColon + 1;
+        idx = idx + stringMatch.index + stringMatch[0].length + 1;
+      } else if (callMatch) {
+        const matchEndPos = callMatch.index + callMatch[0].length;
+        const callEndPos =
+          matchEndPos + findBalancedParenIndex(rest.slice(matchEndPos));
+        replaceData = rest.slice(callMatch.index, callEndPos + 1);
+
+        let match = /group\s*=\s*"([^"]+)"/.exec(replaceData);
+        if (match) {
+          [, groupId] = match;
+        }
+        match = /artifact\s*=\s*"([^"]+)"/.exec(replaceData);
+        if (match) {
+          [, artifact] = match;
+        }
+        match = /version\s*=\s*"([^"]+)"/.exec(replaceData);
+        if (match) {
+          [, version] = match;
+          const versionPosition = match[0].indexOf('"') + 1;
+          fileReplacePosition =
+            startOffset + idx + matchEndPos + versionPosition;
+        }
+        idx = idx + callEndPos + 1;
+      } else {
+        return res;
+      }
+
+      if (groupId && artifact && version && fileReplacePosition) {
+        res.push({
+          datasource: DATASOURCE_MAVEN,
+          depName: `${groupId}:${artifact}`,
+          currentValue: version,
+          registryUrls: [DEFAULT_MAVEN_REPO],
+          managerData: { replaceData },
+        });
+      }
+    }
+  }
+
+  return res;
+}
+
+function parseRepositories(content: string): string[] {
+  let idx = 0;
+  const res: string[] = [];
+
+  while (idx < content.length) {
+    if (content[idx] === ' ' || content[idx] === '\n') {
+      idx++;
+    } else {
+      const rest = content.substring(idx);
+
+      const stringMatch = /"([^"]+)"\s*,/g.exec(rest);
+      const callMatch = /maven\.repository\s*\(/g.exec(rest);
+
+      if (stringMatch && (!callMatch || stringMatch.index < callMatch.index)) {
+        const str = stringMatch[1];
+        res.push(str);
+
+        idx = idx + stringMatch.index + stringMatch[0].length + 1;
+      } else if (callMatch) {
+        const matchEndPos = callMatch.index + callMatch[0].length;
+        const callEndPos =
+          matchEndPos + findBalancedParenIndex(rest.slice(matchEndPos));
+        const callStr = rest.slice(matchEndPos, callEndPos + 1);
+        const match = /"([^"]+)"/.exec(callStr);
+        if (match) {
+          res.push(match[1]);
+        }
+        idx = idx + callEndPos + 1;
+      } else {
+        return res;
+      }
+    }
+  }
+
+  return res;
 }
 
 function parseContent(content: string): string[] {
@@ -81,6 +196,7 @@ function parseContent(content: string): string[] {
     'http_archive',
     'go_repository',
     'git_repository',
+    'maven_install',
   ].reduce(
     (acc, prefix) => [
       ...acc,
@@ -120,6 +236,8 @@ export function extractPackageFile(content: string): PackageFile | null {
     let digest: string;
     let repository: string;
     let registry: string;
+    let artifacts: PackageDependency[];
+    let repositories: string[];
     let match = /name\s*=\s*"([^"]+)"/.exec(def);
     if (match) {
       [, depName] = match;
@@ -164,6 +282,18 @@ export function extractPackageFile(content: string): PackageFile | null {
     match = /importpath\s*=\s*"([^"]+)"/.exec(def);
     if (match) {
       [, importpath] = match;
+    }
+    match = /artifacts\s*=\s*\[/.exec(def);
+    if (match) {
+      const matchEnd = match.index + match[0].length;
+      const end = findBalancedParenIndex(def.slice(matchEnd), '[', ']');
+      artifacts = parseArtifacts(def.slice(matchEnd, matchEnd + end), matchEnd);
+    }
+    match = /repositories\s*=\s*\[/.exec(def);
+    if (match) {
+      const matchEnd = match.index + match[0].length;
+      const end = findBalancedParenIndex(def.slice(matchEnd), '[', ']');
+      repositories = parseRepositories(def.slice(matchEnd, matchEnd + end));
     }
     logger.debug({ dependency: depName, remote, currentValue });
     if (
@@ -246,6 +376,20 @@ export function extractPackageFile(content: string): PackageFile | null {
       dep.datasource = DATASOURCE_DOCKER;
       dep.lookupName = repository;
       deps.push(dep);
+    } else if (depType === 'maven_install' && artifacts) {
+      const ruleName = depName;
+      artifacts.forEach(artifact => {
+        const mavenDep: PackageDependency = {
+          depType,
+          ...artifact,
+          managerData: { ruleName, ...artifact.managerData },
+        };
+        if (repositories) {
+          Array.prototype.push.apply(mavenDep.registryUrls, repositories);
+        }
+        logger.debug({ artDep: mavenDep }, 'Found maven dependency');
+        deps.push(mavenDep);
+      });
     } else {
       logger.info(
         { def },
