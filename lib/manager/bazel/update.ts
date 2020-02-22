@@ -150,6 +150,18 @@ export async function updateDependency({
       match.forEach(matchedHash => {
         newDef = newDef.replace(matchedHash, upgrade.newDigest);
       });
+    } else if (
+      upgrade.depType === 'maven_install' &&
+      upgrade.depName &&
+      upgrade.managerData.replaceData &&
+      upgrade.currentValue &&
+      upgrade.newValue
+    ) {
+      const newContent = upgrade.managerData.replaceData.replace(
+        upgrade.currentValue,
+        upgrade.newValue
+      );
+      return fileContent.replace(upgrade.managerData.replaceData, newContent);
     }
     logger.debug({ oldDef: upgrade.managerData.def, newDef });
     let existingRegExStr = `${upgrade.depType}\\([^\\)]+name\\s*=\\s*"${upgrade.depName}"(.*\\n)+?\\s*\\)`;
