@@ -5,6 +5,7 @@ import { logger } from '../../logger';
 import { PackageDependency, PackageFile } from '../common';
 import { regEx } from '../../util/regex';
 import * as dockerVersioning from '../../versioning/docker';
+import * as mavenVersioning from '../../versioning/maven';
 import {
   DATASOURCE_DOCKER,
   DATASOURCE_GITHUB,
@@ -141,6 +142,7 @@ function parseArtifacts(
       if (groupId && artifact && version && fileReplacePosition) {
         res.push({
           datasource: DATASOURCE_MAVEN,
+          versioning: mavenVersioning.id,
           depName: `${groupId}:${artifact}`,
           currentValue: version,
           registryUrls: [DEFAULT_MAVEN_REPO],
