@@ -341,6 +341,8 @@ export async function processBranch(
       const fileFilters = config.postUpgradeTasks.fileFilters || [];
 
       if (is.nonEmptyArray(commands)) {
+        await commitFilesToBranch(config);
+
         for (const cmd of commands) {
           if (
             !config.allowedPostUpgradeCommands.some(pattern =>
